@@ -45,17 +45,17 @@ const (
 	sAcceptPreCommitEndorsement fsm.State = "S_ACCEPT_PRECOMMIT_ENDORSEMENT"
 
 	// consensus event types
-	eCalibrate                        fsm.EventType = "E_CALIBRATE"
-	ePrepare                          fsm.EventType = "E_PREPARE"
-	eReceiveBlock                     fsm.EventType = "E_RECEIVE_BLOCK"
-	eFailedToReceiveBlock             fsm.EventType = "E_FAILED_TO_RECEIVE_BLOCK"
-	eReceiveProposalEndorsement       fsm.EventType = "E_RECEIVE_PROPOSAL_ENDORSEMENT"
-	eStopReceivingProposalEndorsement fsm.EventType = "E_STOP_RECEIVING_PROPOSAL_ENDORSEMENT"
-	eReceiveLockEndorsement           fsm.EventType = "E_RECEIVE_LOCK_ENDORSEMENT"
-	eStopReceivingLockEndorsement     fsm.EventType = "E_STOP_RECEIVING_LOCK_ENDORSEMENT"
-	eReceivePreCommitEndorsement      fsm.EventType = "E_RECEIVE_PRECOMMIT_ENDORSEMENT"
-	eStopReceivingPreCommitEndorsement     fsm.EventType = "E_STOP_RECEIVING_PRECOMMIT_ENDORSEMENT"
-	eBroadcastPreCommitEndorsement    fsm.EventType = "E_BROADCAST_PRECOMMIT_ENDORSEMENT"
+	eCalibrate                         fsm.EventType = "E_CALIBRATE"
+	ePrepare                           fsm.EventType = "E_PREPARE"
+	eReceiveBlock                      fsm.EventType = "E_RECEIVE_BLOCK"
+	eFailedToReceiveBlock              fsm.EventType = "E_FAILED_TO_RECEIVE_BLOCK"
+	eReceiveProposalEndorsement        fsm.EventType = "E_RECEIVE_PROPOSAL_ENDORSEMENT"
+	eStopReceivingProposalEndorsement  fsm.EventType = "E_STOP_RECEIVING_PROPOSAL_ENDORSEMENT"
+	eReceiveLockEndorsement            fsm.EventType = "E_RECEIVE_LOCK_ENDORSEMENT"
+	eStopReceivingLockEndorsement      fsm.EventType = "E_STOP_RECEIVING_LOCK_ENDORSEMENT"
+	eReceivePreCommitEndorsement       fsm.EventType = "E_RECEIVE_PRECOMMIT_ENDORSEMENT"
+	eStopReceivingPreCommitEndorsement fsm.EventType = "E_STOP_RECEIVING_PRECOMMIT_ENDORSEMENT"
+	eBroadcastPreCommitEndorsement     fsm.EventType = "E_BROADCAST_PRECOMMIT_ENDORSEMENT"
 
 	// BackdoorEvent indicates a backdoor event type
 	BackdoorEvent fsm.EventType = "E_BACKDOOR"
@@ -393,7 +393,7 @@ func (m *ConsensusFSM) calibrate(evt fsm.Event) (fsm.State, error) {
 }
 
 func (m *ConsensusFSM) prepare(_ fsm.Event) (fsm.State, error) {
-	isDelegate, proposal, isProposer, locked, preCommitEndorsement, delay, err := m.ctx.Prepare()
+	isDelegate, proposal, isProposer, locked, isPreCommit, preCommitEndorsement, delay, err := m.ctx.Prepare()
 	switch {
 	case err != nil:
 		m.ctx.Logger().Error("Error during prepare", zap.Error(err))
@@ -409,7 +409,7 @@ func (m *ConsensusFSM) prepare(_ fsm.Event) (fsm.State, error) {
 		ttl += delay
 	}
 	// Setup timeouts
-	if preCommitEndorsement != nil {
+	if isPreCommit {
 		cEvt := m.ctx.NewConsensusEvent(eBroadcastPreCommitEndorsement, preCommitEndorsement)
 		m.produce(cEvt, ttl)
 		ttl += m.cfg.AcceptProposalEndorsementTTL
@@ -433,7 +433,7 @@ func (m *ConsensusFSM) prepare(_ fsm.Event) (fsm.State, error) {
 		m.ProduceReceiveBlockEvent(proposal)
 	}
 	if locked {
-		if preCommitEndorsement != nil {
+		if isPreCommit {
 			return sAcceptPreCommitEndorsement, nil
 		}
 		if proposal == nil {

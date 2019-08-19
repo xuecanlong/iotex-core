@@ -258,6 +258,7 @@ func (ctx *rollDPoSCtx) Prepare() (
 	proposal interface{},
 	isProposer bool,
 	locked bool,
+	isPreCommit bool,
 	precommitEndorsement interface{},
 	delay time.Duration,
 	err error,
@@ -295,9 +296,14 @@ func (ctx *rollDPoSCtx) Prepare() (
 			ctx.round.Block(ctx.round.HashOfBlockInLock()),
 			ctx.round.ProofOfLock(),
 		)); err != nil {
+			ctx.logger().Error("endorse error", zap.Error(err))
 			return
 		}
-		precommitEndorsement = ctx.round.ReadyToCommit(ctx.encodedAddr)
+		if endorse := ctx.round.ReadyToCommit(ctx.encodedAddr); endorse != nil {
+			isPreCommit = true
+			precommitEndorsement = endorse
+			ctx.logger().Warn("precommit", zap.Any("endorse", endorse))
+		}
 	}
 	if isProposer = ctx.round.Proposer() == ctx.encodedAddr; isProposer {
 		ctx.logger().Info("current node is a proposer")

@@ -82,18 +82,23 @@ type Agent struct {
 	broadcastInboundHandler    HandleBroadcastInbound
 	unicastInboundAsyncHandler HandleUnicastInboundAsync
 	host                       *p2p.Host
+	latency                    time.Duration
 }
 
 // NewAgent instantiates a local P2P agent instance
 func NewAgent(cfg config.Config, broadcastHandler HandleBroadcastInbound, unicastHandler HandleUnicastInboundAsync) *Agent {
 	gh := cfg.Genesis.Hash()
-	return &Agent{
+	agent := &Agent{
 		cfg: cfg.Network,
 		// Make sure the honest node only care the messages related the chain from the same genesis
 		topicSuffix:                hex.EncodeToString(gh[22:]), // last 10 bytes of genesis hash
 		broadcastInboundHandler:    broadcastHandler,
 		unicastInboundAsyncHandler: unicastHandler,
 	}
+	if cfg.Consensus.RollDPoS.Failure != "" {
+		agent.latency = cfg.Consensus.RollDPoS.Delay
+	}
+	return agent
 }
 
 // Start connects into P2P network
@@ -159,6 +164,10 @@ func (p *Agent) Start(ctx context.Context) error {
 			return
 		}
 
+		// simulate network latency
+		if p.latency != 0 {
+			time.Sleep(p.latency)
+		}
 		t, _ := ptypes.Timestamp(broadcast.GetTimestamp())
 		latency = time.Since(t).Nanoseconds() / time.Millisecond.Nanoseconds()
 

@@ -70,6 +70,77 @@ func init() {
 	prometheus.MustRegister(consensusHeightMtc)
 }
 
+var tester = []string{
+	"io1ph0u2psnd7muq5xv9623rmxdsxc4uapxhzpg02",
+	"io19kshh892255x4h5ularvr3q3al2v8cgl80fqrt",
+	"io1fxzh50pa6qc6x5cprgmgw4qrp5vw97zk5pxt3q",
+	"io1xuavja5dwde8pvy4yms06yyncad4yavghjhwra",
+	"io1eq4ehs6xx6zj9gcsax7h3qydwlxut9xcfcjras",
+	"io13sj9mzpewn25ymheukte4v39hvjdtrfp00mlyv",
+	"io158hyzrmf4a8xll7gfc8xnwlv70jgp44tzy5nvd",
+	"io1jh0ekmccywfkmj7e8qsuzsupnlk3w5337hjjg2",
+	"io1vrl48nsdm8jaujccd9cx4ve23cskr0ys6urx92",
+	"io10a298zmzvrt4guq79a9f4x7qedj59y7ery84he",
+	"io1cl6rl2ev5dfa988qmgzg2x4hfazmp9vn2g66ng",
+	"io1ed52svvdun2qv8sf2m0xnynuxfaulv6jlww7ur",
+	"io1skmqp33qme8knyw0fzgt9takwrc2nvz4sevk5c",
+	"io1l3wc0smczyay8xq747e2hw63mzg3ctp6uf8wsg",
+	"io1q4tdrahguffdu4e9j9aj4f38p2nee0r9vlhx7s",
+	"io15flratm0nhh5xpxz2lznrrpmnwteyd86hxdtj0",
+	"io1znka733xefxjjw2wqddegplwtefun0mfdmz7dw",
+	"io1cdqx6p5rquudxuewflfndpcl0l8t5aezen9slr",
+	"io14gnqxf9dpkn05g337rl7eyt2nxasphf5m6n0rd",
+	"io1ns7y0pxmklk8ceattty6n7makpw76u770u5avy",
+	"io1yhvu38epz5vmkjaclp45a7t08r27slmcc0zjzh",
+	"io19d0p3ah4g8ww9d7kcxfq87yxe7fnr8rpth5shj",
+	"io1v3gkc49d5vwtdfdka2ekjl3h468egun8e43r7z",
+	"io1k9y4a9juk45zaqwvjmhtz6yjc68twqds4qcvzv",
+}
+
+func (ctx *rollDPoSCtx) isProposeTester() bool {
+	return ctx.cfg.Failure != "" && ctx.encodedAddr == tester[0]
+}
+
+func (ctx *rollDPoSCtx) isEndorseTester() bool {
+	if ctx.cfg.Failure == "" {
+		return false
+	}
+	return ctx.encodedAddr == tester[0] || ctx.encodedAddr == tester[1] ||
+		ctx.encodedAddr == tester[2] || ctx.encodedAddr == tester[3] ||
+		ctx.encodedAddr == tester[4] || ctx.encodedAddr == tester[5] ||
+		ctx.encodedAddr == tester[6] || ctx.encodedAddr == tester[7]
+}
+
+func (ctx *rollDPoSCtx) isLockTester() bool {
+	if ctx.cfg.Failure == "" {
+		return false
+	}
+	return ctx.encodedAddr == tester[8] || ctx.encodedAddr == tester[9] ||
+		ctx.encodedAddr == tester[10] || ctx.encodedAddr == tester[11] ||
+		ctx.encodedAddr == tester[12] || ctx.encodedAddr == tester[13] ||
+		ctx.encodedAddr == tester[14] || ctx.encodedAddr == tester[15]
+}
+
+func (ctx *rollDPoSCtx) isPrecommitTester() bool {
+	if ctx.cfg.Failure == "" {
+		return false
+	}
+	return ctx.encodedAddr == tester[16] || ctx.encodedAddr == tester[17] ||
+		ctx.encodedAddr == tester[18] || ctx.encodedAddr == tester[19] ||
+		ctx.encodedAddr == tester[20] || ctx.encodedAddr == tester[21] ||
+		ctx.encodedAddr == tester[22] || ctx.encodedAddr == tester[23]
+}
+
+func (ctx *rollDPoSCtx) isCommitTester() bool {
+	if ctx.cfg.Failure == "" {
+		return false
+	}
+	return ctx.encodedAddr == tester[0] || ctx.encodedAddr == tester[3] ||
+		ctx.encodedAddr == tester[6] || ctx.encodedAddr == tester[9] ||
+		ctx.encodedAddr == tester[12] || ctx.encodedAddr == tester[15] ||
+		ctx.encodedAddr == tester[18] || ctx.encodedAddr == tester[21]
+}
+
 // CandidatesByHeightFunc defines a function to overwrite candidates
 type CandidatesByHeightFunc func(uint64) ([]*state.Candidate, error)
 type rollDPoSCtx struct {
@@ -86,6 +157,7 @@ type rollDPoSCtx struct {
 	clock       clock.Clock
 	active      bool
 	mutex       sync.RWMutex
+	failCounter int
 }
 
 func newRollDPoSCtx(
@@ -265,6 +337,18 @@ func (ctx *rollDPoSCtx) Prepare() error {
 	if err != nil {
 		return err
 	}
+	if ctx.isEndorseTester() {
+		ctx.logger().Error("hit endorse tester")
+	}
+	if ctx.isLockTester() {
+		ctx.logger().Error("hit lock tester")
+	}
+	if ctx.isPrecommitTester() {
+		ctx.logger().Error("hit precommit tester")
+	}
+	if ctx.isCommitTester() {
+		ctx.logger().Error("hit commit tester")
+	}
 	ctx.logger().Debug(
 		"new round",
 		zap.Uint64("height", newRound.height),
@@ -295,6 +379,15 @@ func (ctx *rollDPoSCtx) Proposal() (interface{}, error) {
 	defer ctx.mutex.RUnlock()
 	if ctx.round.Proposer() != ctx.encodedAddr {
 		return nil, nil
+	}
+	// simulate error
+	if ctx.cfg.Failure != "" && ctx.failCounter == 0 && ctx.round.height >= 10 {
+		ctx.failCounter++
+		return nil, errors.New("test propose")
+	}
+	if ctx.isProposeTester() {
+		ctx.logger().Error("sporadic propose")
+		return nil, errors.New("sporadic propose")
 	}
 	if ctx.round.IsLocked() {
 		return ctx.endorseBlockProposal(newBlockProposal(
@@ -329,6 +422,17 @@ func (ctx *rollDPoSCtx) PreCommitEndorsement() interface{} {
 }
 
 func (ctx *rollDPoSCtx) NewProposalEndorsement(msg interface{}) (interface{}, error) {
+	// simulate error
+	if ctx.cfg.Failure != "" && ctx.failCounter < 20 && ctx.round.height >= 20 {
+		ctx.failCounter++
+		ctx.logger().Error("test endorse", zap.Int("count", ctx.failCounter))
+		time.Sleep(6 * time.Second)
+	}
+	if ctx.isEndorseTester() && ctx.failCounter < 100 && ctx.round.height >= 60 {
+		ctx.failCounter++
+		ctx.logger().Error("sporadic endorse")
+		time.Sleep(6 * time.Second)
+	}
 	ctx.mutex.RLock()
 	defer ctx.mutex.RUnlock()
 	var blockHash []byte
@@ -366,6 +470,17 @@ func (ctx *rollDPoSCtx) NewProposalEndorsement(msg interface{}) (interface{}, er
 func (ctx *rollDPoSCtx) NewLockEndorsement(
 	msg interface{},
 ) (interface{}, error) {
+	// simulate error
+	if ctx.cfg.Failure != "" && ctx.failCounter < 40 && ctx.round.height >= 30 {
+		ctx.failCounter++
+		ctx.logger().Error("test lock", zap.Int("count", ctx.failCounter))
+		time.Sleep(6 * time.Second)
+	}
+	if ctx.isLockTester() && ctx.failCounter < 100 && ctx.round.height >= 70 {
+		ctx.failCounter++
+		ctx.logger().Error("sporadic lock")
+		time.Sleep(6 * time.Second)
+	}
 	ctx.mutex.RLock()
 	defer ctx.mutex.RUnlock()
 	blkHash, err := ctx.verifyVote(
@@ -394,6 +509,17 @@ func (ctx *rollDPoSCtx) NewLockEndorsement(
 func (ctx *rollDPoSCtx) NewPreCommitEndorsement(
 	msg interface{},
 ) (interface{}, error) {
+	// simulate error
+	if ctx.cfg.Failure != "" && ctx.failCounter < 60 && ctx.round.height >= 40 {
+		ctx.failCounter++
+		ctx.logger().Error("test precommit", zap.Int("count", ctx.failCounter))
+		time.Sleep(6 * time.Second)
+	}
+	if ctx.isPrecommitTester() && ctx.failCounter < 100 && ctx.round.height >= 80 {
+		ctx.failCounter++
+		ctx.logger().Error("sporadic precommit")
+		time.Sleep(6 * time.Second)
+	}
 	ctx.mutex.RLock()
 	defer ctx.mutex.RUnlock()
 	blkHash, err := ctx.verifyVote(
@@ -418,6 +544,17 @@ func (ctx *rollDPoSCtx) NewPreCommitEndorsement(
 }
 
 func (ctx *rollDPoSCtx) Commit(msg interface{}) (bool, error) {
+	// simulate error
+	if ctx.cfg.Failure != "" && ctx.failCounter < 80 && ctx.round.height >= 50 {
+		ctx.failCounter++
+		ctx.logger().Error("test commit", zap.Int("count", ctx.failCounter))
+		time.Sleep(6 * time.Second)
+	}
+	if ctx.isCommitTester() && ctx.failCounter < 120 && ctx.round.height >= 90 {
+		ctx.failCounter++
+		ctx.logger().Error("sporadic commit")
+		time.Sleep(6 * time.Second)
+	}
 	ctx.mutex.Lock()
 	defer ctx.mutex.Unlock()
 	blkHash, err := ctx.verifyVote(msg, []ConsensusVoteTopic{COMMIT})
@@ -474,7 +611,8 @@ func (ctx *rollDPoSCtx) Commit(msg interface{}) (bool, error) {
 		)
 	}
 
-	consensusDurationMtc.WithLabelValues().Set(float64(time.Since(ctx.round.roundStartTime)))
+	duration := time.Since(ctx.round.roundStartTime).Nanoseconds() / time.Millisecond.Nanoseconds()
+	consensusDurationMtc.WithLabelValues().Set(float64(duration))
 	if pendingBlock.Height() > 1 {
 		prevBlkHeader, err := ctx.chain.BlockHeaderByHeight(pendingBlock.Height() - 1)
 		if err != nil {

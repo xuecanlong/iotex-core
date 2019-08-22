@@ -251,6 +251,7 @@ type (
 		FSM               consensusfsm.Config `yaml:"fsm"`
 		ToleratedOvertime time.Duration       `yaml:"toleratedOvertime"`
 		Delay             time.Duration       `yaml:"delay"`
+		Failure           string              `yaml:"failure"`
 	}
 
 	// Dispatcher is the dispatcher config

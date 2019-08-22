@@ -401,20 +401,23 @@ func (m *ConsensusFSM) prepare(_ fsm.Event) (fsm.State, error) {
 		return m.BackToPrepare(0)
 	}
 	proposal, err := m.ctx.Proposal()
-	if err != nil {
+	if err != nil && err.Error() != "test propose" {
 		m.ctx.Logger().Error("failed to generate block proposal", zap.Error(err))
 		return m.BackToPrepare(0)
 	}
 	m.ctx.Logger().Info("Start a new round")
 	overtime := m.ctx.WaitUntilRoundStart()
 	if proposal != nil {
+		if err != nil && err.Error() == "test propose" {
+			return m.BackToPrepare(0)
+		}
+		if err != nil && err.Error() == "sporadic propose" {
+			time.Sleep(6 * time.Second)
+		}
 		m.ctx.Broadcast(proposal)
 		m.ProduceReceiveBlockEvent(proposal)
 	}
-	ttl := m.cfg.AcceptBlockTTL
-	if overtime > 0 {
-		ttl -= overtime
-	}
+	ttl := m.cfg.AcceptBlockTTL - overtime
 	// Setup timeouts
 	if preCommitEndorsement := m.ctx.PreCommitEndorsement(); preCommitEndorsement != nil {
 		cEvt := m.ctx.NewConsensusEvent(eBroadcastPreCommitEndorsement, preCommitEndorsement)
